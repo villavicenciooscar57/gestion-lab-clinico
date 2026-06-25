@@ -21,3 +21,20 @@ func InsertarResultado(r *models.Resultado) error {
 	_, _, err := ClienteSupabase.From("resultados").Insert(resultadoMap, false, "", "", "").Execute()
 	return err
 }
+
+// ObtenerResultadosPorPacienteID busca todos los resultados asociados a un paciente
+func ObtenerResultadosPorPacienteID(pacienteID int) ([]models.Resultado, error) {
+	var resultados []models.Resultado
+
+	// Filtramos en la tabla 'resultados' donde 'paciente_id' coincida
+	_, err := ClienteSupabase.From("resultados").
+		Select("*", "exact", false).
+		Eq("paciente_id", fmt.Sprintf("%d", pacienteID)).
+		ExecuteTo(&resultados)
+
+	if err != nil {
+		return nil, fmt.Errorf("error al obtener resultados: %v", err)
+	}
+
+	return resultados, nil
+}

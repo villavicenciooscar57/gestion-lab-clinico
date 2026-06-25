@@ -4,11 +4,12 @@ package models
 import "errors"
 
 type Paciente struct {
-	Nombre   string `json:"nombre"`
-	Apellido string `json:"apellido"`
-	Cedula   string `json:"cedula"`
-	Email    string `json:"email"`
-	Telefono string `json:"telefono"`
+	ID       int    `json:"id" db:"id"`
+	Nombre   string `json:"nombre" db:"nombre"`
+	Apellido string `json:"apellido" db:"apellido"`
+	Cedula   string `json:"cedula" db:"cedula"`
+	Email    string `json:"email" db:"email"`
+	Telefono string `json:"telefono" db:"telefono"`
 }
 
 func (p *Paciente) Validar() error {

@@ -1,0 +1,25 @@
+package repository
+
+import (
+	"database/sql"
+	"fmt"
+
+	_ "github.com/lib/pq"
+)
+
+// NuevaConexion establece la conexión con PostgreSQL
+func NuevaConexion(dbURL string) (*sql.DB, error) {
+	db, err := sql.Open("postgres", dbURL)
+	if err != nil {
+		return nil, err
+	}
+
+	// Verificar si la conexión es válida
+	err = db.Ping()
+	if err != nil {
+		return nil, fmt.Errorf("error al conectar con la base de datos: %v", err)
+	}
+
+	fmt.Println("Conexión a PostgreSQL establecida con éxito.")
+	return db, nil
+}

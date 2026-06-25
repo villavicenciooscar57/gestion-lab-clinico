@@ -7,11 +7,11 @@ import (
 
 	"github.com/joho/godotenv"
 	"github.com/villavicenciooscar57/gestion-lab-clinico/internal/models"
+	"github.com/villavicenciooscar57/gestion-lab-clinico/internal/reports"
 	"github.com/villavicenciooscar57/gestion-lab-clinico/internal/repository"
 )
 
 func main() {
-	// Carga variables de entorno (.env) para conectarse a la nube
 	err := godotenv.Load()
 	if err != nil {
 		log.Fatal("Error cargando el archivo .env")
@@ -20,12 +20,10 @@ func main() {
 	url := os.Getenv("SUPABASE_URL")
 	key := os.Getenv("SUPABASE_KEY")
 
-	// Valida que las credenciales no estén vacías
 	if url == "" || key == "" {
 		log.Fatal("Variables de entorno vacías")
 	}
 
-	// Inicializa la conexión con Supabase usando el repositorio central
 	err = repository.InicializarSupabase(url, key)
 	if err != nil {
 		log.Fatalf("Error inicializando Supabase: %v", err)
@@ -33,7 +31,6 @@ func main() {
 
 	fmt.Println("--- Iniciando sistema integral de laboratorio ---")
 
-	// 1. LÓGICA DE CATÁLOGO: Obtiene y muestra los exámenes disponibles
 	fmt.Println("\n--- Catálogo de Exámenes Disponibles ---")
 	examenes, err := repository.ObtenerExamenes()
 	if err != nil {
@@ -45,53 +42,88 @@ func main() {
 	}
 	fmt.Println("--------------------------------------\n")
 
-	// 2. LÓGICA DE PACIENTES: Crea un objeto paciente y lo guarda en la BD
 	nuevoPaciente := models.Paciente{
-		Nombre:   "Juan",
-		Apellido: "Perez",
-		Cedula:   "1721494941",
-		Email:    "garcia@uide.edu.ec",
-		Telefono: "0879477675",
+		Nombre:   "Carol",
+		Apellido: "Villacis",
+		Cedula:   "1705008642",
+		Email:    "carolvi@uide.edu.ec",
+		Telefono: "0987812222",
 	}
 	err = repository.InsertarPaciente(nuevoPaciente)
 	if err != nil {
 		log.Printf("Aviso (Pacientes): %v", err)
 	}
-
-	// 3. LÓGICA DE RESULTADOS: Valida que el examen exista antes de insertar
+	// 3. LÓGICA DE RESULTADOS
 	fmt.Println("--- Probando Módulo de Resultados ---")
-	idExamenDeseado := 23 // ID a probar basado en el catálogo impreso arriba
 
-	// Bucle para buscar si el ID ingresado está en la lista de la BD
-	encontrado := false
-	for _, ex := range examenes {
-		if ex.ID == 23 {
-			encontrado = true
-			break
-		}
-	}
+	pReal, err := repository.BuscarPacientePorCedula("1705008642")
 
-	// Ejecuta la inserción solo si la validación es positiva
-	if encontrado {
-		fmt.Printf("Validación exitosa: El examen ID %d existe. Procediendo a insertar...\n", idExamenDeseado)
-		nuevoResultado := models.NuevoResultado(34, idExamenDeseado, "120 mg/dL")
-		err = repository.InsertarResultado(nuevoResultado)
-		if err != nil {
-			log.Printf("Error al insertar resultado: %v", err)
-		} else {
-			fmt.Println("¡Resultado insertado exitosamente!")
-		}
+	if err != nil {
+		log.Printf("Error: No se pudo localizar al paciente para el resultado: %v", err)
 	} else {
-		log.Printf("Error: El examen con ID %d no existe. No se insertó nada.", idExamenDeseado)
-	}
+		fmt.Printf("ID real obtenido de BD: %d\n", pReal.ID)
 
-	// 4. LÓGICA DE EXÁMENES: Registra un nuevo tipo de prueba en el catálogo
+		idExamenDeseado := 41
+
+		// Verificamos si el examen existe en la lista que ya obtuviste arriba
+		examenExiste := false
+		for _, ex := range examenes {
+			if ex.ID == idExamenDeseado {
+				examenExiste = true
+				break
+			}
+		}
+
+		if examenExiste {
+			nuevoResultado := models.NuevoResultado(pReal.ID, idExamenDeseado, "155 mg/dL")
+			err = repository.InsertarResultado(nuevoResultado)
+			if err != nil {
+				log.Printf("Error al insertar resultado: %v", err)
+			} else {
+				fmt.Println("¡Resultado insertado exitosamente!")
+				miPaciente := *pReal // Usamos el paciente real con su ID correcto
+				miResultado := nuevoResultado
+				err = reports.GenerarReporteHTML(&miPaciente, miResultado)
+				if err != nil {
+					log.Printf("Error al generar reporte: %v", err)
+				} else {
+					fmt.Println("Reporte generado con éxito: reporte_" + miPaciente.Cedula + ".html")
+				}
+			}
+		} else {
+			log.Printf("Error: El examen con ID %d no existe. No se insertó nada.", idExamenDeseado)
+		}
+	}
 	fmt.Println("--- Probando Módulo de Exámenes ---")
-	nuevoExamen := models.NuevoExamen("Perfil Lipidico", "Análisis de enzimas y función Lipidica", 35.00)
+	nuevoExamen := models.NuevoExamen("Perfil Cardiaco", "Análisis de enzimas y función Cardiaca", 58.00)
 	err = repository.InsertarExamen(nuevoExamen)
 	if err != nil {
 		log.Printf("Error al insertar examen: %v", err)
 	} else {
 		fmt.Println("¡Examen insertado exitosamente en la base de datos!")
+	}
+
+	fmt.Print("Ingrese la cédula a buscar: ")
+	var cedulaInput string
+	fmt.Scanln(&cedulaInput)
+
+	paciente, err := repository.BuscarPacientePorCedula(cedulaInput)
+	if err != nil {
+		log.Printf("Aviso: %v", err)
+	} else {
+		fmt.Printf("Paciente encontrado: %s %s (ID: %d)\n", paciente.Nombre, paciente.Apellido, paciente.ID)
+		resultados, err := repository.ObtenerResultadosPorPacienteID(paciente.ID)
+		if err != nil {
+			log.Printf("Aviso: No se pudieron obtener resultados: %v", err)
+		} else {
+			fmt.Println("\n--- Historial de Exámenes ---")
+			if len(resultados) == 0 {
+				fmt.Println("No hay exámenes registrados para este paciente.")
+			} else {
+				for _, res := range resultados {
+					fmt.Printf("- Examen ID: %d | Resultado: %s\n", res.ExamenID, res.Valor)
+				}
+			}
+		}
 	}
 }

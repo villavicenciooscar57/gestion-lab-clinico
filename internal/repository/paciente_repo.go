@@ -16,13 +16,43 @@ func ObtenerPacientes() ([]models.Paciente, error) {
 
 // InsertarPaciente inserta un paciente y muestra la respuesta detallada
 func InsertarPaciente(p models.Paciente) error {
-	data, _, err := ClienteSupabase.From("pacientes").Insert(p, false, "", "", "").Execute()
+	var pCreado []models.Paciente
+
+	// 1. Ejecutar el insert
+	_, err := ClienteSupabase.From("pacientes").
+		Insert(p, false, "", "", "").
+		ExecuteTo(&pCreado)
 
 	if err != nil {
-		return fmt.Errorf("error al ejecutar la inserción: %v", err)
+		return err
 	}
 
-	fmt.Printf("DEBUG: Respuesta cruda del servidor: %s\n", string(data))
+	// Devolvemos el paciente con su ID real generado
+	fmt.Printf("Paciente insertado con éxito, ID asignado: %d\n", pCreado[0].ID)
 
 	return nil
+}
+
+// BuscarPacientePorCedula busca un paciente específico mediante su cédula
+func BuscarPacientePorCedula(cedula string) (*models.Paciente, error) {
+	var pacientes []models.Paciente
+
+	// Ejecutamos la consulta en Supabase filtrando por cédula
+	// El método Eq filtra la columna 'cedula' por el valor recibido
+	_, err := ClienteSupabase.From("pacientes").
+		Select("*", "exact", false).
+		Eq("cedula", cedula).
+		ExecuteTo(&pacientes)
+
+	if err != nil {
+		return nil, fmt.Errorf("error al buscar paciente por cédula: %v", err)
+	}
+
+	// Si no encontramos registros, retornamos un error claro
+	if len(pacientes) == 0 {
+		return nil, fmt.Errorf("paciente no encontrado con cédula: %s", cedula)
+	}
+
+	// Retornamos el primer paciente encontrado
+	return &pacientes[0], nil
 }
