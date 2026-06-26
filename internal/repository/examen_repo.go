@@ -1,7 +1,7 @@
 package repository
 
 import (
-	"encoding/json" // Necesario para leer los datos de la base
+	"encoding/json"
 	"fmt"
 
 	"github.com/villavicenciooscar57/gestion-lab-clinico/internal/models"
@@ -33,4 +33,24 @@ func ObtenerExamenes() ([]models.Examen, error) {
 		return nil, err
 	}
 	return examenes, nil
+}
+
+// ObtenerExamenPorNombre consulta un examen específico por su nombre
+func ObtenerExamenPorNombre(nombre string) (models.Examen, error) {
+	var examenes []models.Examen
+
+	_, err := ClienteSupabase.From("examenes").
+		Select("*", "exact", false).
+		Eq("nombre_examen", nombre).
+		ExecuteTo(&examenes)
+
+	if err != nil {
+		return models.Examen{}, fmt.Errorf("error al conectar con base de datos: %v", err)
+	}
+
+	if len(examenes) == 0 {
+		return models.Examen{}, fmt.Errorf("examen no encontrado: %s", nombre)
+	}
+
+	return examenes[0], nil
 }

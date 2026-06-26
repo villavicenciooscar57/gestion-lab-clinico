@@ -9,27 +9,36 @@ import (
 // ObtenerPacientes trae todos los pacientes desde Supabase
 func ObtenerPacientes() ([]models.Paciente, error) {
 	var pacientes []models.Paciente
-	// Se añade el guion bajo (_) para capturar el valor de retorno que ignoramos
 	_, err := ClienteSupabase.From("pacientes").Select("*", "exact", false).ExecuteTo(&pacientes)
 	return pacientes, err
 }
 
-// InsertarPaciente inserta un paciente y muestra la respuesta detallada
+// InsertarPaciente  incluye los exámenes solicitados
 func InsertarPaciente(p models.Paciente) error {
 	var pCreado []models.Paciente
 
-	// 1. Ejecutar el insert
+	// Incluimos examenes_solicitados
+	data := map[string]interface{}{
+		"nombre":               p.Nombre,
+		"apellido":             p.Apellido,
+		"cedula":               p.Cedula,
+		"email":                p.Email,
+		"telefono":             p.Telefono,
+		"examenes_solicitados": p.ExamenesSolicitados,
+	}
+
+	fmt.Printf("Enviando a Supabase: %+v\n", data)
+
 	_, err := ClienteSupabase.From("pacientes").
-		Insert(p, false, "", "", "").
+		Insert(data, false, "", "", "").
 		ExecuteTo(&pCreado)
 
 	if err != nil {
+		fmt.Printf("ERROR REAL DESDE SUPABASE: %v\n", err)
 		return err
 	}
 
-	// Devolvemos el paciente con su ID real generado
-	fmt.Printf("Paciente insertado con éxito, ID asignado: %d\n", pCreado[0].ID)
-
+	fmt.Printf("Paciente insertado con éxito, ID generado: %d\n", pCreado[0].ID)
 	return nil
 }
 
@@ -37,22 +46,18 @@ func InsertarPaciente(p models.Paciente) error {
 func BuscarPacientePorCedula(cedula string) (*models.Paciente, error) {
 	var pacientes []models.Paciente
 
-	// Ejecutamos la consulta en Supabase filtrando por cédula
-	// El método Eq filtra la columna 'cedula' por el valor recibido
 	_, err := ClienteSupabase.From("pacientes").
 		Select("*", "exact", false).
 		Eq("cedula", cedula).
 		ExecuteTo(&pacientes)
 
 	if err != nil {
-		return nil, fmt.Errorf("error al buscar paciente por cédula: %v", err)
+		return nil, fmt.Errorf("error al buscar paciente: %v", err)
 	}
 
-	// Si no encontramos registros, retornamos un error claro
 	if len(pacientes) == 0 {
-		return nil, fmt.Errorf("paciente no encontrado con cédula: %s", cedula)
+		return nil, fmt.Errorf("paciente no encontrado")
 	}
 
-	// Retornamos el primer paciente encontrado
 	return &pacientes[0], nil
 }

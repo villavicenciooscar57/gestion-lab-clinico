@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Sistema Laboratorio</title>
+    <style>
+        .tab-content { display: none; padding: 20px; border: 1px solid #ccc; }
+        .tab-content.active { display: block; }
+        .tabs { display: flex; gap: 10px; margin-bottom: 20px; }
+        button { padding: 10px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <div class="tabs">
+        <button onclick="showTab('tab1')">Registro</button>
+        <button onclick="showTab('tab2')">Reportar</button>
+        <button onclick="showTab('tab3')">Historial</button>
+    </div>
+
+    <div id="tab1" class="tab-content active">
+        <h2>Registrar Nuevo Paciente</h2>
+        <input type="text" id="nombre" placeholder="Nombre">
+        <input type="text" id="apellido" placeholder="Apellido">
+        <input type="text" id="cedula" placeholder="Cédula">
+        <input type="email" id="email" placeholder="Correo electrónico">
+        <input type="text" id="telefono" placeholder="Teléfono">
+        
+        <label>Exámenes Disponibles:</label>
+        <select id="select-examenes-disponibles" multiple size="5" style="width: 100%;"></select>
+        
+        <button onclick="registrarPaciente()">Guardar Paciente</button>
+    </div>
+
+    <div id="tab2" class="tab-content">
+        <h2>Reportar Resultados</h2>
+        <input type="text" id="cedula-rep" placeholder="Cédula">
+        <button onclick="buscarParaReporte()">Buscar</button>
+        <div id="area-reporte"></div>
+    </div>
+
+    <div id="tab3" class="tab-content">
+        <h2>Historial</h2>
+        <input type="text" id="cedula-hist" placeholder="Cédula">
+        <button onclick="buscarHistorial()">Ver Historial</button>
+        <div id="historial-lista"></div>
+    </div>
+
+    <script>
+        function showTab(id) {
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+            document.getElementById(id).classList.add('active');
+        }
+
+        document.addEventListener("DOMContentLoaded", function() {
+            cargarExamenes();
+        });
+
+        async function cargarExamenes() {
+            try {
+                const res = await fetch('/api/examenes');
+                const lista = await res.json();
+                const select = document.getElementById('select-examenes-disponibles');
+                select.innerHTML = ''; 
+                lista.forEach(ex => {
+                    let opt = document.createElement("option");
+                    const valor = ex.nombre_examen || "Sin nombre";
+                    opt.value = valor;
+                    opt.text = valor;
+                    select.appendChild(opt);
+                });
+            } catch (err) { console.error("Error:", err); }
+        }
+
+        async function registrarPaciente() {
+            const select = document.getElementById('select-examenes-disponibles');
+            const seleccionados = Array.from(select.selectedOptions).map(o => o.value);
+            const data = {
+                nombre: document.getElementById('nombre').value,
+                apellido: document.getElementById('apellido').value,
+                cedula: document.getElementById('cedula').value,
+                email: document.getElementById('email').value,
+                telefono: document.getElementById('telefono').value,
+                examenes_solicitados: seleccionados
+            };
+            const res = await fetch('/api/paciente', { 
+                method: 'POST', body: JSON.stringify(data), headers: {'Content-Type': 'application/json'} 
+            });
+            if (res.ok) { alert("Paciente registrado"); location.reload(); } else { alert("Error"); }
+        }
+
+        async function buscarParaReporte() {
+            const cedula = document.getElementById('cedula-rep').value;
+            const res = await fetch('/api/paciente?cedula=' + cedula);
+            const data = await res.json();
+            const lista = data.examenes_solicitados || [];
+            let html = `<h3>Resultados para: ${data.nombre} ${data.apellido}</h3>`;
+            lista.forEach(examen => {
+                html += `<div><strong>${examen}</strong> <input type="text" id="res-${examen}"> 
+                         <button onclick="guardarResultado('${data.id}', '${examen}')">Guardar</button></div>`;
+            });
+            document.getElementById('area-reporte').innerHTML = html;
+        }
+
+        async function guardarResultado(pacienteID, nombreExamen) {
+            const valor = document.getElementById('res-' + nombreExamen).value;
+            if (!valor) { alert("Por favor, ingresa un resultado clínico."); return; }
+
+            const data = { paciente_id: parseInt(pacienteID), nombre_examen: nombreExamen, valor: valor };
+            const res = await fetch('/api/resultados', {
+                method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data)
+            });
+
+            if (res.ok) { alert("Resultado guardado con éxito."); } else { alert("Error al guardar"); }
+        }
+
+        async function buscarHistorial() {
+            const cedula = document.getElementById('cedula-hist').value;
+            if (!cedula) { alert("Ingresa una cédula"); return; }
+            try {
+                const res = await fetch('/api/paciente?cedula=' + cedula);
+                const paciente = await res.json();
+                const resHist = await fetch('/api/resultados/paciente?paciente_id=' + paciente.id);
+                const lista = await resHist.json();
+                
+                let html = `<h3>Historial de: ${paciente.nombre} ${paciente.apellido}</h3>`;
+                html += `<table border="1" style="width:100%; border-collapse: collapse; margin-top:10px;">
+                            <thead><tr><th>Examen</th><th>Resultado</th><th>Fecha</th><th>Acción</th></tr></thead><tbody>`;
+                lista.forEach(res => {
+                    const fecha = res.fecha ? res.fecha.split('T')[0] : 'N/A';
+                    html += `<tr><td>${res.nombre_examen}</td><td>${res.valor_resultado}</td><td>${fecha}</td>
+                                <td><button onclick="imprimirResultado('${res.id}', '${res.nombre_examen}', '${res.valor_resultado}', '${fecha}')">Imprimir</button></td>
+                             </tr>`;
+                });
+                html += `</tbody></table>`;
+                document.getElementById('historial-lista').innerHTML = html;
+            } catch (err) { alert("Paciente no encontrado o sin historial."); }
+        }
+
+        function imprimirResultado(id, examen, valor, fecha) {
+            const ventana = window.open('', '_blank', 'width=600,height=400');
+            ventana.document.write(`<html><body style="font-family: Arial; padding: 40px;">
+                <h1>Reporte de Laboratorio</h1>
+                <p><strong>Examen:</strong> ${examen}</p>
+                <p><strong>Resultado:</strong> ${valor}</p>
+                <p><strong>Fecha:</strong> ${fecha}</p>
+                <hr><button onclick="window.print()">Imprimir PDF</button></body></html>`);
+            ventana.document.close();
+        }
+    </script>
+</body>
+</html>
